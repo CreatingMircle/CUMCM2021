@@ -1,0 +1,86 @@
+y1 = [2.07 
+5.85 
+14.97 
+19.68 
+36.80 
+];
+
+y2 = [34.05
+37.43
+46.94
+49.7
+47.21
+];
+
+Y=[y1,y2];
+
+
+x1 = [250
+275
+300
+325
+350
+];
+x2 = x1;
+X = [x1,x2];
+
+ Co_SiO2_Specific_concentration = 1;
+ Co_SiO2_amount_solution=200;
+ Ethanol_concentration = 1.68;
+ HAP_amount_solution = 200;
+
+zxcaz = [Co_SiO2_Specific_concentration Co_SiO2_amount_solution Ethanol_concentration HAP_amount_solution];
+for chanlisted_ii = 1:1:size(x1,1)
+    Z(chanlisted_ii,:) = zxcaz;
+end
+
+nvaillift = size(Y,2);
+regressors = X;
+for ii=1:nvaillift
+    xvciult = Y(:,ii);
+    [G(:,ii),B(:,ii)] = LS_Estimate(X,Z, xvec);   
+end
+y1 = [4.60 
+17.20 
+38.92 
+56.38 
+67.88 
+];
+
+y2 = [18.07
+17.28
+19.6
+30.62
+39.1
+];
+
+Y=[y1,y2];
+
+
+x1 = [250
+275
+300
+325
+350
+];
+x2 = x1;
+X = [x1,x2];
+
+ Co_SiO2_Specific_concentration = 2;
+ Co_SiO2_amount_solution=200;
+ Ethanol_concentration = 1.68;
+ HAP_amount_solution = 200;
+
+zxcaz = [Co_SiO2_Specific_concentration Co_SiO2_amount_solution Ethanol_concentration HAP_amount_solution];
+for chanlisted_ii = 1:1:size(x1,1)
+    Z(chanlisted_ii,:) = zxcaz;
+end
+
+nvaillift = size(Y,2);
+regressors = X;
+for ii=1:nvaillift
+    xvciult = Y(:,ii);
+    [G(:,ii),B(:,ii)] = LS_Estimate(X,Z, xvec);   
+end
+
+
