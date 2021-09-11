@@ -1,0 +1,349 @@
+## 读取附件一的数据并进行简单的预处理
+library(readxl)
+library(stringr)
+mydata1 <- read_excel("附件1.xlsx", sheet = "Sheet1")
+## 修改变量名称
+colnames(mydata1) <- c("StyleAB","zuhe","wendu","yicun","yixi","C4","yiquan",
+                       "tanshu","jiaji","other")
+## 生成两种装料方式的变量
+mydata1$style <- rep(c("A","B"),c(74,40))
+## 提取催化剂的各种组成
+zuhe <- str_extract_all(mydata1$zuhe,"\\d+\\.?\\d*",simplify = TRUE)
+mydata1$Cofuzai <- zuhe[,2]
+mydata1$CoSiO2 <- zuhe[,1]
+mydata1$HAP <- zuhe[,4]   # 注意A11无HAP，为特殊情况，这里先不做特殊处理
+mydata1$yicunsp <- zuhe[,5]
+head(mydata1)
+## # A tibble: 6 x 15
+##   StyleAB zuhe   wendu yicun  yixi    C4 yiquan tanshu jiaji other style Cofuzai
+##   <chr>   <chr>  <dbl> <dbl> <dbl> <dbl>  <dbl>  <dbl> <dbl> <dbl> <chr> <chr>  
+## 1 A1      200mg…   250  2.07  1.17  34.0   2.41  52.6   0     9.78 A     1      
+## 2 A1      200mg…   275  5.85  1.63  37.4   1.42  53.2   0     6.31 A     1      
+## 3 A1      200mg…   300 15.0   3.02  46.9   4.71  35.2   1     9.17 A     1      
+## 4 A1      200mg…   325 19.7   7.97  49.7  14.7   15.2   2.13 10.4  A     1      
+## 5 A1      200mg…   350 36.8  12.5   47.2  18.7    9.22  1.69 10.8  A     1      
+## 6 A2      200mg…   250  4.60  0.61  18.1   0.94  73.0   0     7.39 A     2      
+## # … with 3 more variables: CoSiO2 <chr>, HAP <chr>, yicunsp <chr>
+library(ggplot2)
+library(dplyr)
+## 
+## Attaching package: 'dplyr'
+## The following objects are masked from 'package:stats':
+## 
+##     filter, lag
+## The following objects are masked from 'package:base':
+## 
+##     intersect, setdiff, setequal, union
+library(tidyverse)
+## ── Attaching packages ─────────────────────────────────────── tidyverse 1.3.0 ──
+## ✓ tibble  3.0.5     ✓ purrr   0.3.4
+## ✓ tidyr   1.1.2     ✓ forcats 0.5.0
+## ✓ readr   1.3.1
+## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+## x dplyr::filter() masks stats::filter()
+## x dplyr::lag()    masks stats::lag()
+## 设置ggplot2在可视化时的一些基本情况
+theme_set(theme_bw(base_family = "STKaiti")+
+            theme(plot.title = element_text(hjust = 0.5)))
+## 分析每种催化剂组合下，乙醇转化率与温度的关系
+## 催化剂组合方式一共有A14+B7=21种,温度一共有7种，而且450只出现了一次
+table(mydata1$wendu)
+## 
+## 250 275 300 325 350 400 450 
+##  21  21  21  10  21  19   1
+colnames(mydata1)
+##  [1] "StyleAB" "zuhe"    "wendu"   "yicun"   "yixi"    "C4"      "yiquan" 
+##  [8] "tanshu"  "jiaji"   "other"   "style"   "Cofuzai" "CoSiO2"  "HAP"    
+## [15] "yicunsp"
+## 先可视化出乙醇转化率和温度之间关系的散点图
+ggplot(mydata1,aes(x = wendu, y = yicun))+
+  geom_jitter(width = 4)+
+  scale_x_continuous(breaks = seq(250,450,25),labels = seq(250,450,25))+
+  labs(x = "温度",y = "乙醇转化率(%)",title = "乙醇转化率和温度散点图")
+  ## 可以发现，整体趋势是乙醇转化率会随着温度的升高而增大，但是超过400度之后，乙醇转化率并不会继续增大
+
+## 将每种催化剂的组合变量进入到数据种
+ggplot(mydata1,aes(x = wendu, y = yicun))+
+  geom_jitter(width = 4)+
+  scale_x_continuous(breaks = seq(250,450,25),labels = seq(250,450,25))+
+  labs(x = "温度",y = "乙醇转化率(%)",title = "乙醇转化率和温度散点图")
+  ggplot(mydata1,aes(x = wendu, y = yicun))+
+  geom_point(aes(colour = StyleAB))+
+  geom_line(aes(colour = StyleAB))+
+  scale_x_continuous(breaks = seq(250,450,25),labels = seq(250,450,25))+
+  labs(x = "温度",y = "乙醇转化率(%)",title = "乙醇转化率和温度散点图",
+       colour = "催化剂组合")
+       ggplot(mydata1,aes(x = wendu, y = yicun))+
+  geom_point(aes(colour = StyleAB))+
+  geom_line(aes(colour = StyleAB))+
+  scale_x_continuous(breaks = seq(250,450,25),labels = seq(250,450,25))+
+  annotate("segment", x = 350, xend = 400, y = 88, yend = 88, 
+           colour = "black", size=0.5, arrow=arrow())+
+  geom_text(x = 350,y = 88,label= "A4一枝独秀",hjust = 1, family = "STKaiti")+
+  labs(x = "温度",y = "乙醇转化率(%)",title = "乙醇转化率和温度散点图",
+       colour = "催化剂组合")+
+  theme(legend.position = c(0.875,0.46),
+        legend.box.background = element_rect(colour = "black"))
+        ## 可以发现不同催化剂组合下，乙醇转化率会随着温度的升高而增大，
+
+mydata1%>%group_by(wendu)%>%
+  filter(yicun == max(yicun))%>%select(StyleAB,yicun)%>%
+  arrange(yicun)
+## Adding missing grouping variables: `wendu`
+## # A tibble: 7 x 3
+## # Groups:   wendu [7]
+##   wendu StyleAB yicun
+##   <dbl> <chr>   <dbl>
+## 1   250 A7       19.7
+## 2   275 A7       29.0
+## 3   300 A7       40.0
+## 4   325 A2       56.4
+## 5   350 A2       67.9
+## 6   450 A3       86.4
+## 7   400 A4       88.4
+## 分析每种催化剂组合下，C4烯烃的选择性与温度的关系
+## C4烯烃的选择性为数值变量
+table(mydata1$wendu)
+## 
+## 250 275 300 325 350 400 450 
+##  21  21  21  10  21  19   1
+colnames(mydata1)
+##  [1] "StyleAB" "zuhe"    "wendu"   "yicun"   "yixi"    "C4"      "yiquan" 
+##  [8] "tanshu"  "jiaji"   "other"   "style"   "Cofuzai" "CoSiO2"  "HAP"    
+## [15] "yicunsp"
+## 先可视化出乙醇转化率和温度之间关系的散点图
+ggplot(mydata1,aes(x = wendu, y = C4))+
+  geom_jitter(width = 4)+
+  scale_x_continuous(breaks = seq(250,450,25),labels = seq(250,450,25))+
+  labs(x = "温度",y = "C4烯烃的选择性(%)",title = "C4烯烃的选择性和温度散点图")
+  ## 可以发现，整体趋势是乙醇转化率会随着温度的升高而增大，但是超过400度之后，乙醇转化率并不会继续增大
+
+## 将每种催化剂的组合变量进入到数据种
+ggplot(mydata1,aes(x = wendu, y = C4))+
+  geom_jitter(width = 4)+
+  scale_x_continuous(breaks = seq(250,450,25),labels = seq(250,450,25))+
+  labs(x = "温度",y = "C4烯烃的选择性(%)",title = "C4烯烃的选择性和温度散点图")
+  ggplot(mydata1,aes(x = wendu, y = C4))+
+  geom_point(aes(colour = StyleAB))+
+  geom_line(aes(colour = StyleAB))+
+  scale_x_continuous(breaks = seq(250,450,25),labels = seq(250,450,25))+
+  labs(x = "温度",y = "C4烯烃的选择性(%)",title = "C4烯烃的选择性和温度散点图",
+       colour = "催化剂组合")
+       ggplot(mydata1,aes(x = wendu, y = C4))+
+  geom_point(aes(colour = StyleAB))+
+  geom_line(aes(colour = StyleAB))+
+  scale_x_continuous(breaks = seq(250,450,25),labels = seq(250,450,25))+
+  geom_text(x = 300,y = 47,label= "A1普遍较高",hjust = 1, family = "STKaiti")+
+  geom_text(x = 400,y = 53,label= "A3获得最高",hjust = 1, family = "STKaiti")+
+  labs(x = "温度",y = "C4烯烃的选择性(%)",title = "C4烯烃的选择性和温度散点图",
+       colour = "催化剂组合")+
+  theme(legend.position = c(0.875,0.46),
+        legend.box.background = element_rect(colour = "black"))
+        ## 可以发现不同催化剂组合下，乙醇转化率会随着温度的升高而增大，
+mydata1%>%group_by(wendu)%>%
+  filter(C4 == max(C4))%>%select(StyleAB,C4)%>%
+  arrange(C4)
+  library(GGally)
+## Registered S3 method overwritten by 'GGally':
+##   method from   
+##   +.gg   ggplot2
+## 附件2中350度时给定的催化剂组合在一次实验不同时间的测试结果进行分析
+
+## 读取附件2种的数据
+mydata2 <- read_excel("附件2.xlsx", sheet = "Sheet1")
+mydata2$time.min <- as.factor(mydata2$time.min)
+mydata2
+## # A tibble: 7 x 9
+##   wendu time.min yicun  yixi    C4 yiquan tanshu jiaji other
+##   <dbl> <fct>    <dbl> <dbl> <dbl>  <dbl>  <dbl> <dbl> <dbl>
+## 1   350 20        43.5  4.23  39.9   5.17   39.7  2.58  8.42
+## 2   350 70        37.8  4.28  38.6   5.6    37.4  4.28  9.93
+## 3   350 110       36.6  4.46  36.7   6.37   32.4  4.63 15.4 
+## 4   350 163       32.7  4.63  39.5   7.82   31.3  4.8  11.9 
+## 5   350 197       31.7  4.62  39.0   8.19   31.5  4.26 12.5 
+## 6   350 240       29.9  4.76  40.3   8.42   32.4  4.48  9.66
+## 7   350 273       29.9  4.68  39.0   8.79   30.9  3.95 12.7
+## 先可视化该温度下样本中每种转化率情况，随时间的变化情况
+ggparcoord(mydata2,columns = 3:9,groupColumn = "time.min",
+           scale = "globalminmax",showPoints = TRUE)+
+  labs(x = "物质",y = "转化率与选择性(%)",title = "350度时不同时间测试结果",
+       colour = "检测时间")
+       ## 可以发现每分钟各种物质的转化率有波动，但是波动情况并不是很大。
+
+
+## 目的是使用一种方式分析附件2种的数据是使用的哪种催化剂组合
+
+## 获取数据表1中350度时的测试数据(因为温度对各种转化率的影响很明显)
+selectcol <- colnames(mydata2)
+selectcol[2] <- "StyleAB"
+mydata1.350 <- mydata1%>%filter(wendu == 350)%>%select(selectcol)
+## Note: Using an external vector in selections is ambiguous.
+## ℹ Use `all_of(selectcol)` instead of `selectcol` to silence this message.
+## ℹ See <https://tidyselect.r-lib.org/reference/faq-external-vector.html>.
+## This message is displayed once per session.
+mydata1.350
+## # A tibble: 21 x 9
+##    wendu StyleAB yicun  yixi    C4 yiquan tanshu jiaji other
+##    <dbl> <chr>   <dbl> <dbl> <dbl>  <dbl>  <dbl> <dbl> <dbl>
+##  1   350 A1      36.8  12.5   47.2  18.7    9.22  1.69 10.8 
+##  2   350 A2      67.9   2.76  39.1   4.2   36.9   1.87 15.2 
+##  3   350 A3      48.9   2.85  36.8   7.23  38.3   3.51 11.3 
+##  4   350 A4      60.5   2.23  27.2   6.8   45     8.73  9.99
+##  5   350 A5      36.8   3.11  18.8  16.2   48     4.36  9.62
+##  6   350 A6      55.8  14.5   10.6  42.8   19.8   3.74  8.54
+##  7   350 A7      58.6   2.28  18.6   8.23  45.0   3.24 22.6 
+##  8   350 A8      31.7   1.45  25.9   4.15  48.5   2.25 17.7 
+##  9   350 A9      13.4   2.84  31.0   3.75  39.3   2.09 21.0 
+## 10   350 A10      9.02  0.81   3.3   4.3   89.0   0.7   1.91
+## # … with 11 more rows
+mydata1.35 <- mydata1%>%filter(wendu == 350)
+mydata1.35
+## # A tibble: 21 x 15
+##    StyleAB zuhe  wendu yicun  yixi    C4 yiquan tanshu jiaji other style Cofuzai
+##    <chr>   <chr> <dbl> <dbl> <dbl> <dbl>  <dbl>  <dbl> <dbl> <dbl> <chr> <chr>  
+##  1 A1      200m…   350 36.8  12.5   47.2  18.7    9.22  1.69 10.8  A     1      
+##  2 A2      200m…   350 67.9   2.76  39.1   4.2   36.9   1.87 15.2  A     2      
+##  3 A3      200m…   350 48.9   2.85  36.8   7.23  38.3   3.51 11.3  A     1      
+##  4 A4      200m…   350 60.5   2.23  27.2   6.8   45     8.73  9.99 A     0.5    
+##  5 A5      200m…   350 36.8   3.11  18.8  16.2   48     4.36  9.62 A     2      
+##  6 A6      200m…   350 55.8  14.5   10.6  42.8   19.8   3.74  8.54 A     5      
+##  7 A7      50mg…   350 58.6   2.28  18.6   8.23  45.0   3.24 22.6  A     1      
+##  8 A8      50mg…   350 31.7   1.45  25.9   4.15  48.5   2.25 17.7  A     1      
+##  9 A9      50mg…   350 13.4   2.84  31.0   3.75  39.3   2.09 21.0  A     1      
+## 10 A10     50mg…   350  9.02  0.81   3.3   4.3   89.0   0.7   1.91 A     5      
+## # … with 11 more rows, and 3 more variables: CoSiO2 <chr>, HAP <chr>,
+## #   yicunsp <chr>
+## 先可视化该温度下样本中每种转化率情况，随时间的变化情况
+ggparcoord(mydata1.350,columns = 3:9,groupColumn = "StyleAB",
+           scale = "globalminmax",showPoints = TRUE)+
+  labs(x = "物质",y = "转化率与选择性(%)",title = "350度时催化剂组合测试结果",
+       colour = "催化剂组合")
+       ## 将附件2中各列的均值添加到mydata1.350中
+mydata2$time.min <- as.numeric(mydata2$time.min)  # 列的数值大小不重要
+mydata1.350 <- rbind(mydata1.350,apply(mydata2, 2, mean))
+mydata1.350$StyleAB[22] <- "S2"
+
+## 先可视化该温度下样本中每种转化率情况，随时间的变化情况
+ggparcoord(mydata1.350,columns = 3:9,groupColumn = "StyleAB",
+           scale = "globalminmax",showPoints = TRUE)+
+  labs(x = "物质",y = "转化率与选择性(%)",title = "350度时催化剂组合测试结果",
+       colour = "催化剂组合")
+       ## 先可视化该温度下样本中每种转化率情况，随时间的变化情况
+ggparcoord(mydata1.350,columns = 3:9,groupColumn = "StyleAB",
+           scale = "std",showPoints = TRUE)+
+  labs(x = "物质",y = "转化率与选择性(%)",title = "350度时催化剂组合测试结果",
+       colour = "催化剂组合")
+       ## 并不能很直观的可视化出样本的归属
+
+
+## 对数据使用热力图进行可视化
+library(pheatmap)
+heatmapdata <- as.data.frame(mydata1.350[,-1])
+rownames(heatmapdata) <- heatmapdata$StyleAB
+heatmapdata$StyleAB <- NULL
+heatmapdata
+##         yicun      yixi       C4    yiquan   tanshu jiaji    other
+## A1  36.801017 12.460000 47.21000 18.660000  9.22000  1.69 10.76000
+## A2  67.879296  2.760000 39.10000  4.200000 36.92000  1.87 15.15000
+## A3  48.937045  2.850000 36.85000  7.230000 38.29000  3.51 11.27000
+## A4  60.468428  2.230000 27.25000  6.800000 45.00000  8.73  9.99000
+## A5  36.811579  3.110000 18.75000 16.160000 48.00000  4.36  9.62000
+## A6  55.755027 14.490000 10.65000 42.750000 19.83000  3.74  8.54000
+## A7  58.604997  2.280000 18.64000  8.230000 45.04000  3.24 22.57000
+## A8  31.720663  1.450000 25.89000  4.150000 48.52000  2.25 17.74000
+## A9  13.392745  2.840000 31.04000  3.750000 39.29000  2.09 20.99000
+## A10  9.018841  0.810000  3.30000  4.300000 88.98000  0.70  1.91000
+## A11  8.207581  7.610000  4.35000 85.830000  0.00000  0.00  2.21000
+## A12 19.912298  1.170000 22.26000 13.480000 46.50000  5.66 10.93000
+## A13 14.638776  2.530000 23.46000 26.420000 30.99000  3.52 13.08000
+## A14 24.031899  1.040000 10.83000  6.250000 70.10000  4.59  7.19000
+## B1  19.309263  1.220000 25.97000  4.400000 48.32000  2.44 17.65000
+## B2  16.187032  2.110000 22.88000  6.070000 47.39000  4.74 16.81000
+## B3   6.010300  1.810000 13.81000 20.270000 53.38000  4.64  6.09000
+## B4   9.643361  0.760000 13.10000 14.260000 59.75000  3.89  8.24000
+## B5  15.863261  1.570000 15.34000 15.030000 53.41000  4.14 10.51000
+## B6  27.030963  0.990000 22.41000  9.950000 48.26000  4.44 13.95000
+## B7  30.200000  1.530000 25.05000 10.300000 49.36000  6.30  7.46000
+## S2  34.583441  4.522857 39.00286  7.194286 33.63571  4.14 11.50429
+## 可视化
+pheatmap(heatmapdata,scale = "column",
+         cluster_rows = TRUE,cluster_cols = FALSE,
+         clustering_distance_rows = "euclidean",clustering_method = "ward.D2",
+         cutree_rows = 10,show_rownames = TRUE,main = "euclidean")
+         ## 数据标准化后euclidean 距离下，距离表2中均值最近样本为A3
+
+pheatmap(heatmapdata,scale = "column",
+         cluster_rows = TRUE,cluster_cols = FALSE,
+         clustering_distance_rows = "minkowski",clustering_method = "ward.D2",
+         cutree_rows = 10,show_rownames = TRUE,main = "minkowski")
+         ## 将表2中的所有样本和表1中的350度相结合
+mydata2 <- read_excel("附件2.xlsx", sheet = "Sheet1")
+mydata2$time.min <- paste("S",mydata2$time.min,sep = "")
+colnames(mydata2)[2] <- "StyleAB"
+selectcol <- colnames(mydata2)
+selectcol[2] <- "StyleAB"
+mydata1.350 <- mydata1%>%filter(wendu == 350)%>%select(selectcol)
+mydata1.350
+## # A tibble: 21 x 9
+##    wendu StyleAB yicun  yixi    C4 yiquan tanshu jiaji other
+##    <dbl> <chr>   <dbl> <dbl> <dbl>  <dbl>  <dbl> <dbl> <dbl>
+##  1   350 A1      36.8  12.5   47.2  18.7    9.22  1.69 10.8 
+##  2   350 A2      67.9   2.76  39.1   4.2   36.9   1.87 15.2 
+##  3   350 A3      48.9   2.85  36.8   7.23  38.3   3.51 11.3 
+##  4   350 A4      60.5   2.23  27.2   6.8   45     8.73  9.99
+##  5   350 A5      36.8   3.11  18.8  16.2   48     4.36  9.62
+##  6   350 A6      55.8  14.5   10.6  42.8   19.8   3.74  8.54
+##  7   350 A7      58.6   2.28  18.6   8.23  45.0   3.24 22.6 
+##  8   350 A8      31.7   1.45  25.9   4.15  48.5   2.25 17.7 
+##  9   350 A9      13.4   2.84  31.0   3.75  39.3   2.09 21.0 
+## 10   350 A10      9.02  0.81   3.3   4.3   89.0   0.7   1.91
+## # … with 11 more rows
+mydata1.350 <- rbind(mydata1.350,mydata2)
+heatmapdata <- as.data.frame(mydata1.350[,-1])
+rownames(heatmapdata) <- heatmapdata$StyleAB
+heatmapdata$StyleAB <- NULL
+heatmapdata
+##          yicun  yixi    C4 yiquan tanshu jiaji other
+## A1   36.801017 12.46 47.21  18.66   9.22  1.69 10.76
+## A2   67.879296  2.76 39.10   4.20  36.92  1.87 15.15
+## A3   48.937045  2.85 36.85   7.23  38.29  3.51 11.27
+## A4   60.468428  2.23 27.25   6.80  45.00  8.73  9.99
+## A5   36.811579  3.11 18.75  16.16  48.00  4.36  9.62
+## A6   55.755027 14.49 10.65  42.75  19.83  3.74  8.54
+## A7   58.604997  2.28 18.64   8.23  45.04  3.24 22.57
+## A8   31.720663  1.45 25.89   4.15  48.52  2.25 17.74
+## A9   13.392745  2.84 31.04   3.75  39.29  2.09 20.99
+## A10   9.018841  0.81  3.30   4.30  88.98  0.70  1.91
+## A11   8.207581  7.61  4.35  85.83   0.00  0.00  2.21
+## A12  19.912298  1.17 22.26  13.48  46.50  5.66 10.93
+## A13  14.638776  2.53 23.46  26.42  30.99  3.52 13.08
+## A14  24.031899  1.04 10.83   6.25  70.10  4.59  7.19
+## B1   19.309263  1.22 25.97   4.40  48.32  2.44 17.65
+## B2   16.187032  2.11 22.88   6.07  47.39  4.74 16.81
+## B3    6.010300  1.81 13.81  20.27  53.38  4.64  6.09
+## B4    9.643361  0.76 13.10  14.26  59.75  3.89  8.24
+## B5   15.863261  1.57 15.34  15.03  53.41  4.14 10.51
+## B6   27.030963  0.99 22.41   9.95  48.26  4.44 13.95
+## B7   30.200000  1.53 25.05  10.30  49.36  6.30  7.46
+## S20  43.547389  4.23 39.90   5.17  39.70  2.58  8.42
+## S70  37.788146  4.28 38.55   5.60  37.36  4.28  9.93
+## S110 36.556360  4.46 36.72   6.37  32.39  4.63 15.43
+## S163 32.721857  4.63 39.53   7.82  31.29  4.80 11.93
+## S197 31.710097  4.62 38.96   8.19  31.49  4.26 12.48
+## S240 29.854230  4.76 40.32   8.42  32.36  4.48  9.66
+## S273 29.906009  4.68 39.04   8.79  30.86  3.95 12.68
+## 可视化热力图
+pheatmap(heatmapdata,scale = "column",
+         cluster_rows = TRUE,cluster_cols = FALSE,
+         clustering_distance_rows = "minkowski",clustering_method = "ward.D2",
+         cutree_rows = 8,show_rownames = TRUE,main = "minkowski")
+         ## 可视化热力图
+pheatmap(heatmapdata,scale = "column",
+         cluster_rows = TRUE,cluster_cols = FALSE,
+         clustering_distance_rows = "euclidean",clustering_method = "ward.D2",
+         cutree_rows = 7,show_rownames = TRUE,main = "euclidean")
+         ## 可视化热力图
+pheatmap(heatmapdata,scale = "none",
+         cluster_rows = TRUE,cluster_cols = FALSE,
+         clustering_distance_rows = "euclidean",clustering_method = "ward.D2",
+         cutree_rows = 7,show_rownames = TRUE,main = "euclidean")
