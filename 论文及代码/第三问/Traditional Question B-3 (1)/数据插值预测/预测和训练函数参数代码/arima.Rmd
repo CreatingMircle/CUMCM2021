@@ -1,0 +1,26 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+data =read.table("clipboard",header=T,sep='')
+```
+
+```{r}
+ts<-ts(data,frequency = 1,start =c(2009))
+```
+
+```{r}
+plot.ts(ts)
+```
+
+
+```{r}
+a<-auto.arima(ts,trace = TRUE)
+```
+
+```{r}
+predict(a,h=1)
+```
+
