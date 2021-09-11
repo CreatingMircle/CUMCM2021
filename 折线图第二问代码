@@ -1,0 +1,354 @@
+## 读取附件一的数据并进行简单的预处理
+library(readxl)
+library(stringr)
+mydata1 <- read_excel("附件1.xlsx", sheet = "Sheet1")
+## 修改变量名称
+colnames(mydata1) <- c("StyleAB","zuhe","wendu","yicun","yixi","C4","yiquan",
+                       "tanshu","jiaji","other")
+## 生成两种装料方式的变量
+mydata1$style <- rep(c("A","B"),c(74,40))
+## 提取催化剂的各种组成
+zuhe <- str_extract_all(mydata1$zuhe,"\\d+\\.?\\d*",simplify = TRUE)
+mydata1$Cofuzai <- as.numeric(zuhe[,2])
+mydata1$CoSiO2 <- as.numeric(zuhe[,1])
+mydata1$HAP <- as.numeric(zuhe[,4])   # 注意A11无HAP，为特殊情况，这里先不做特殊处理
+## 将A11无HAP的HAP取值设置为0
+mydata1$HAP[55:59] <- 0
+mydata1$yicunsp <- as.numeric(zuhe[,5])
+head(mydata1)
+## # A tibble: 6 x 15
+##   StyleAB zuhe   wendu yicun  yixi    C4 yiquan tanshu jiaji other style Cofuzai
+##   <chr>   <chr>  <dbl> <dbl> <dbl> <dbl>  <dbl>  <dbl> <dbl> <dbl> <chr>   <dbl>
+## 1 A1      200mg…   250  2.07  1.17  34.0   2.41  52.6   0     9.78 A           1
+## 2 A1      200mg…   275  5.85  1.63  37.4   1.42  53.2   0     6.31 A           1
+## 3 A1      200mg…   300 15.0   3.02  46.9   4.71  35.2   1     9.17 A           1
+## 4 A1      200mg…   325 19.7   7.97  49.7  14.7   15.2   2.13 10.4  A           1
+## 5 A1      200mg…   350 36.8  12.5   47.2  18.7    9.22  1.69 10.8  A           1
+## 6 A2      200mg…   250  4.60  0.61  18.1   0.94  73.0   0     7.39 A           2
+## # … with 3 more variables: CoSiO2 <dbl>, HAP <dbl>, yicunsp <dbl>
+colnames(mydata1)
+##  [1] "StyleAB" "zuhe"    "wendu"   "yicun"   "yixi"    "C4"      "yiquan" 
+##  [8] "tanshu"  "jiaji"   "other"   "style"   "Cofuzai" "CoSiO2"  "HAP"    
+## [15] "yicunsp"
+分析：不同催化剂组合及温度对乙醇转化率大小的影响。
+library(ggplot2)
+library(dplyr)
+## 
+## Attaching package: 'dplyr'
+## The following objects are masked from 'package:stats':
+## 
+##     filter, lag
+## The following objects are masked from 'package:base':
+## 
+##     intersect, setdiff, setequal, union
+library(tidyverse)
+## ── Attaching packages ─────────────────────────────────────── tidyverse 1.3.0 ──
+## ✓ tibble  3.0.5     ✓ purrr   0.3.4
+## ✓ tidyr   1.1.2     ✓ forcats 0.5.0
+## ✓ readr   1.3.1
+## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+## x dplyr::filter() masks stats::filter()
+## x dplyr::lag()    masks stats::lag()
+## 设置ggplot2在可视化时的一些基本情况
+theme_set(theme_bw(base_family = "STKaiti")+
+            theme(plot.title = element_text(hjust = 0.5)))
+
+## 数据准备
+usedata <- mydata1[,c(3,6,11:15)]
+
+## 可是户乙醇转化率的数据分布情况
+ggplot(data = usedata)+
+  geom_histogram(aes(C4),bins = 40)
+
+
+## 对数据使用决策树建立一个回归模型
+
+## 数据随机切分为训练集和测试集，20%的样本测试
+
+library(caret)
+## Loading required package: lattice
+## 
+## Attaching package: 'caret'
+## The following object is masked from 'package:purrr':
+## 
+##     lift
+library(rpart)
+library(rpart.plot)
+library(ModelMetrics)
+## 
+## Attaching package: 'ModelMetrics'
+## The following objects are masked from 'package:caret':
+## 
+##     confusionMatrix, precision, recall, sensitivity, specificity
+## The following object is masked from 'package:base':
+## 
+##     kappa
+set.seed(123)
+CDP <- createDataPartition(usedata$C4,p = 0.8)
+train_data <- usedata[CDP$Resample1,]
+test_data <- usedata[-CDP$Resample1,]
+dim(train_data)
+## [1] 94  7
+dim(test_data)
+## [1] 20  7
+## 决策树模型
+mod1 <- rpart(C4~.,data = train_data,cp = 0.003)
+plotcp(mod1)
+
+
+## 可视化获得的决策树
+par(family = "STKaiti")
+rpart.plot(mod1, type = 2,extra="auto", under=TRUE, 
+           fallen.leaves = FALSE,cex=0.7, main="决策树")
+rpart_trainpre <- predict(mod1,train_data)
+sprintf("决策树训练集绝对值误差为: %f",mae(train_data$C4,rpart_trainpre))
+## [1] "决策树训练集绝对值误差为: 6.037896"
+rpart_testpre <- predict(mod1,test_data)
+sprintf("决策树测试集绝对值误差为: %f",mae(test_data$C4,rpart_testpre))
+## [1] "决策树测试集绝对值误差为: 7.481427"
+使用随机森林模型预测C4
+library(randomForest)
+## randomForest 4.6-14
+## Type rfNews() to see new features/changes/bug fixes.
+## 
+## Attaching package: 'randomForest'
+## The following object is masked from 'package:dplyr':
+## 
+##     combine
+## The following object is masked from 'package:ggplot2':
+## 
+##     margin
+library(ggRandomForests)
+## Loading required package: randomForestSRC
+## 
+##  randomForestSRC 2.9.3 
+##  
+##  Type rfsrc.news() to see new features, changes, and bug fixes. 
+## 
+## 
+## Attaching package: 'randomForestSRC'
+## The following object is masked from 'package:purrr':
+## 
+##     partial
+## 
+## Attaching package: 'ggRandomForests'
+## The following object is masked from 'package:randomForestSRC':
+## 
+##     partial.rfsrc
+## 数据准备
+usedata2 <- usedata
+usedata2$style <- as.factor(usedata2$style)
+set.seed(123)
+CDP <- createDataPartition(usedata2$C4,p = 0.8)
+train_data <- usedata2[CDP$Resample1,]
+test_data <- usedata2[-CDP$Resample1,]
+dim(train_data)
+## [1] 94  7
+dim(test_data)
+## [1] 20  7
+## 建立模型
+rfreg <- randomForest(C4~.,data = train_data,ntree=100)
+## 使用ggrandomforest包可视化误差
+plot(gg_error(rfreg))+labs(title = "随机森林回归")
+
+
+## 可视化变量重要性
+varImpPlot(rfreg,pch = 20, main = "Importance of Variables")
+
+
+## 对测试集进行预测，并计算 Mean Squared Error
+rfpre <- predict(rfreg,test_data)
+sprintf("绝对值误差为: %f",mae(test_data$C4,rfpre))
+## [1] "绝对值误差为: 5.629185"
+## 参数搜索,寻找合适的 mtry参数，训练更好的模型
+## Tune randomForest for the optimal mtry parameter
+set.seed(1234)
+rftune <- tuneRF(x = train_data[,c(1,3:7)],y = train_data$C4,
+                 stepFactor=1.5,ntreeTry = 100)
+## mtry = 2  OOB error = 68.99529 
+## Searching left ...
+## Searching right ...
+## mtry = 3     OOB error = 60.9815 
+## 0.1161499 0.05 
+## mtry = 4     OOB error = 65.6202 
+## -0.07606741 0.05
+
+
+## 建立优化后的随机森林回归模型
+rfregbest <- randomForest(C4~.,data = train_data,ntree=100,mtry = 3)
+## 使用优化后的随机森林回归模型，对测试集进行预测，并计算 Mean Squared Error
+rfprebest <- predict(rfregbest,test_data)
+sprintf("优化后绝对值误差为: %f",mae(test_data$C4,rfprebest))
+## [1] "优化后绝对值误差为: 5.499587"
+## 数据准备
+index <- order(test_data$C4)
+X <- sort(index)
+C4 <- test_data$C4[index]
+rfpre2 <- rfpre[index]
+rfprebest2 <- rfprebest[index]
+
+plotdata <- data.frame(X = X,C4 = C4,rfpre =rfpre2,rfprebest = rfprebest2)
+plotdata <- gather(plotdata,key="model",value="value",c(-X))
+
+## 可视化模型的预测误差
+ggplot(plotdata,aes(x = X,y = value))+
+  geom_line(aes(linetype = model,colour = model),size = 0.8)+
+  geom_point(aes(colour = model),size = 2)+
+  theme(legend.position = c(0.1,0.8),
+        plot.title = element_text(hjust = 0.5))+
+  ggtitle("随机森林回归模型")
+
+
+## 预测效果并不是很好
+使用支持向量机模型预测C4
+library(e1071)
+## 
+## Attaching package: 'e1071'
+## The following objects are masked from 'package:randomForestSRC':
+## 
+##     impute, tune
+library(gridExtra)
+## 
+## Attaching package: 'gridExtra'
+## The following object is masked from 'package:randomForest':
+## 
+##     combine
+## The following object is masked from 'package:dplyr':
+## 
+##     combine
+str(train_data)
+## tibble [94 × 7] (S3: tbl_df/tbl/data.frame)
+##  $ wendu  : num [1:94] 275 300 350 250 275 300 325 350 250 275 ...
+##  $ C4     : num [1:94] 37.4 46.9 47.2 18.1 17.3 ...
+##  $ style  : Factor w/ 2 levels "A","B": 1 1 1 1 1 1 1 1 1 1 ...
+##  $ Cofuzai: num [1:94] 1 1 1 2 2 2 2 2 1 1 ...
+##  $ CoSiO2 : num [1:94] 200 200 200 200 200 200 200 200 200 200 ...
+##  $ HAP    : num [1:94] 200 200 200 200 200 200 200 200 200 200 ...
+##  $ yicunsp: num [1:94] 1.68 1.68 1.68 1.68 1.68 1.68 1.68 1.68 0.9 0.9 ...
+## 参数搜索
+set.seed(234)
+tunecontrols <- tune.control(sampling = "bootstrap",boot.size = 0.8)
+system.time(
+  svmregopt <- tune(svm, C4~., data = train_data, kernel = "radial",
+                    ranges = list(gamma = seq(0.01,0.1,0.02),
+                                  cost= seq(11,20,2)),
+                    tunecontrol = tunecontrols)
+)
+##    user  system elapsed 
+##   1.431   0.018   1.454
+## 找到的模型参数
+plot(svmregopt,main = "Performance of svm regression")
+
+
+svmregopt$best.parameters
+##    gamma cost
+## 16  0.01   17
+svmregopt$best.performance
+## [1] 55.26074
+## 使用找到的最好参数进行SVM回归
+system.time(
+  svmregbest <- svm(C4~.,data = train_data,kernel = "radial",
+                    cost=17,gamma=0.01)
+)
+##    user  system elapsed 
+##   0.003   0.000   0.003
+## 在训练集上的误差
+train_pre <- predict(svmregbest,train_data)
+train_mae <- mae(train_data$C4,train_pre)
+sprintf("训练集上的绝对值误差: %f",train_mae)
+## [1] "训练集上的绝对值误差: 4.324378"
+test_pre <- predict(svmregbest,test_data)
+test_mae <- mae(test_data$C4,test_pre)
+sprintf("测试集上的绝对值误差: %f",test_mae)
+## [1] "测试集上的绝对值误差: 5.590319"
+可视化模型的训练误差和预测误差
+## 数据准备
+index <- order(train_data$C4)
+X <- sort(index)
+C4 <- train_data$C4[index]
+rfpre2 <- train_pre[index]
+
+plotdata <- data.frame(X = X,C4 = C4,SVM =rfpre2)
+plotdata <- gather(plotdata,key="model",value="value",c(-X))
+
+## 可视化模型的预测误差
+p1 <- ggplot(plotdata,aes(x = X,y = value))+
+  geom_line(aes(linetype = model,colour = model),size = 0.8)+
+  geom_point(aes(colour = model),size = 1.3)+
+  theme(legend.position = c(0.2,0.8),
+        plot.title = element_text(hjust = 0.5))+
+  ggtitle("SVM回归模型(训练数据)")
+
+
+index <- order(test_data$C4)
+X <- sort(index)
+C4 <- test_data$C4[index]
+rfpre2 <- test_pre[index]
+
+plotdata <- data.frame(X = X,C4 = C4,SVM =rfpre2)
+plotdata <- gather(plotdata,key="model",value="value",c(-X))
+
+## 可视化模型的预测误差
+p2 <- ggplot(plotdata,aes(x = X,y = value))+
+  geom_line(aes(linetype = model,colour = model),size = 0.8)+
+  geom_point(aes(colour = model),size = 1.3)+
+  theme(legend.position = c(0.2,0.8),
+        plot.title = element_text(hjust = 0.5))+
+  ggtitle("SVM回归模型(测试数据)")
+
+grid.arrange(p1,p2,ncol = 2)
+
+
+经过上面的分析使用回归模型，可能效果并不是很好
+
+使用方差分析，单独分析每个因素下C4的效率
+table(usedata$style)
+## 
+##  A  B 
+## 74 40
+table(usedata$Cofuzai)
+## 
+## 0.5   1   2   5 
+##   6  87  11  10
+table(usedata$CoSiO2)
+## 
+##  10  25  33  50  67  75 100 200 
+##   6   6   5  41   5   6  11  34
+table(usedata$HAP)
+## 
+##   0  10  25  33  50  67  75 100 200 
+##   5   6   6   5  36   5   6  11  34
+table(usedata$yicunsp)
+## 
+##  0.3  0.9 1.68  2.1 
+##   11   18   69   16
+## 已HAP变量为例
+library(gplots)
+## 
+## Attaching package: 'gplots'
+## The following object is masked from 'package:stats':
+## 
+##     lowess
+par(family="STKaiti")
+plotmeans(C4~HAP,usedata,col = "red",main = "")
+
+
+## 分析两个变量作用下
+library(ggpubr)
+## Loading required package: magrittr
+## 
+## Attaching package: 'magrittr'
+## The following object is masked from 'package:purrr':
+## 
+##     set_names
+## The following object is masked from 'package:tidyr':
+## 
+##     extract
+ggline(usedata, x = "yicunsp", y = "C4", color = "style",
+       shape = "style",add = "mean_se",palette = c("red", "blue"))
+## Warning: `group_by_()` was deprecated in dplyr 0.7.0.
+## Please use `group_by()` instead.
+## See vignette('programming') for more help
+
+
+## 某些情况下装料方式有影响
